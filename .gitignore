@@ -1,0 +1,15 @@
+# Master Ignore
+node_modules/
+.env
+.DS_Store
+dist/
+build/
+
+# Ignore local environment files in subfolders
+client/.env
+server/.env
+
+# Ignore logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
