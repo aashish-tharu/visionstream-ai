@@ -3,11 +3,11 @@
   "compilerOptions": {
     // File Layout
     // "rootDir": "./src",
-    // "outDir": "./dist",
+    "outDir": "./dist",
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "target": "esnext",
     "esModuleInterop": true,
     "types": [],

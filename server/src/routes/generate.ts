@@ -1,46 +1,3 @@
-// import express from 'express';
-// import { v4 as uuidv4 } from 'uuid';
-// import { sendMessage } from '../services/kafka';
-
-// const router = express.Router();
-
-// router.post('/generate', async (req, res) => {
-//     const {prompt, author } = req.body;
-
-//     if (!prompt || !author) {
-//         return res.status(400).json({error: "Prompt and Author are required."});
-//     }
-
-//     //unique id for the generation and date when started.
-//     const jobId = uuidv4();
-//     const timestamp = Date.now();
-
-//     const jobData = {
-//         jobId,
-//         prompt,
-//         author,
-//         timestamp,
-//         status: 'pending'
-//     }
-
-//     //sendind order to kafka
-//     try {
-//         await sendMessage('image_requests', jobData);
-//         console.log(`Job ${jobId} sent to kafka`);
-
-//         //response
-//         res.status(202).json({
-//             message: "Generation started",
-//             jobId,
-//         });
-//     } catch (error) {
-//         console.log("Kafka Producer Error:", error);
-//         res.status(500).json({error: `Failed to queue image request`});
-//     }
-// })
-
-// export default router;
-
 import express, { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { sendMessage } from '../services/kafka';
@@ -60,7 +17,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     const timestamp = Date.now();
 
     try {
-        // Save initial job to MongoDB
+        // 1. Save initial job to MongoDB
         await Image.create({
             jobId,
             prompt,
@@ -69,7 +26,7 @@ router.post('/generate', async (req: Request, res: Response) => {
             status: 'pending',
         });
 
-        // Send to Kafka
+        // 2. Send to Kafka
         await sendMessage('image_requests', { jobId, prompt, author, timestamp });
         console.log(`✅ Job ${jobId} queued successfully`);
 
@@ -79,15 +36,21 @@ router.post('/generate', async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error("❌ Failed to queue job:", error);
+        console.error(`❌ Failed to queue job ${jobId}:`, error);
+
+        // 3. Prevent DB job from getting permanently stuck if Kafka fails
+        await Image.findOneAndUpdate(
+            { jobId },
+            { status: 'failed', error: 'Failed to reach message queue' }
+        );
+
         return res.status(500).json({ error: "Failed to queue image request" });
     }
 });
 
 // GET /api/status/:jobId
 router.get('/status/:jobId', async (req: Request, res: Response) => {
-    const jobIdParam = req.params.jobId;
-    const jobId = Array.isArray(jobIdParam) ? jobIdParam[0] : jobIdParam;
+    const jobId = req.params.jobId;
 
     if (!jobId) {
         return res.status(400).json({ error: "Job ID is required" });
@@ -118,3 +81,22 @@ router.get('/status/:jobId', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+// GET /api/images
+router.get('/images', async (req: Request, res: Response) => {
+    try {
+        const images = await Image.find({ status: 'completed' }).sort({ completedAt: -1 });
+
+        return res.status(200).json(images.map(img => ({
+            _id: img._id,
+            prompt: img.prompt,
+            author: img.author,
+            imageUrl: img.imageUrl,
+            createdAt: img.completedAt,
+        })));
+
+    } catch (error) {
+        console.error("❌ Failed to fetch images:", error);
+        return res.status(500).json({ error: "Failed to fetch images" });
+    }
+});

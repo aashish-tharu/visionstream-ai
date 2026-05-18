@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Send, Share2 } from 'lucide-react';
+import axios from 'axios';
 
 const Create = () => {
   const [prompt, setPrompt] = useState('');
@@ -10,12 +11,45 @@ const Create = () => {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
-    
-    // TEMPORARY: Simulate the AI/Kafka delay
-    setTimeout(() => {
-      setGeneratedImageUrl('https://images.unsplash.com/photo-1614728263952-84ea206f99b6?w=800');
+    setGeneratedImageUrl(null);
+
+    try {
+      // 1. Submit the job to the server
+      const response = await axios.post('http://localhost:5000/api/generate', {
+        prompt,
+        author,
+      });
+
+      const { jobId } = response.data;
+
+      // 2. Poll for job status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await axios.get(`http://localhost:5000/api/status/${jobId}`);
+          const job = statusResponse.data;
+
+          if (job.status === 'completed') {
+            setGeneratedImageUrl(job.imageUrl);
+            setIsGenerating(false);
+            clearInterval(pollInterval);
+          } else if (job.status === 'failed') {
+            alert(`Generation failed: ${job.error}`);
+            setIsGenerating(false);
+            clearInterval(pollInterval);
+          }
+          // If still processing or pending, continue polling
+        } catch (error) {
+          console.error('Error polling status:', error);
+          setIsGenerating(false);
+          clearInterval(pollInterval);
+        }
+      }, 2000); // Poll every 2 seconds
+
+    } catch (error: any) {
+      console.error('Error generating image:', error);
+      alert(`Failed to start generation: ${error.response?.data?.error || error.message}`);
       setIsGenerating(false);
-    }, 3000);
+    }
   };
 
   return (
@@ -32,7 +66,7 @@ const Create = () => {
           <form onSubmit={handleGenerate} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Your Name</label>
-              <input 
+              <input
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
@@ -44,7 +78,7 @@ const Create = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">AI Prompt</label>
-              <textarea 
+              <textarea
                 rows={5}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -54,12 +88,11 @@ const Create = () => {
               />
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={isGenerating}
-              className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${
-                isGenerating ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20'
-              }`}
+              className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${isGenerating ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                }`}
             >
               {isGenerating ? (
                 <>Building in Kafka...</>
