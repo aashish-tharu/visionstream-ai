@@ -1,12 +1,56 @@
-import React, { useState } from 'react';
-import { Sparkles, Send, Share2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Sparkles, Share2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const STORAGE_KEYS = {
+  prompt: 'create-prompt',
+  author: 'create-author',
+  generatedUrl: 'create-generated-url',
+};
+
+const getStoredValue = (key: string, fallback = '') => {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 const Create = () => {
-  const [prompt, setPrompt] = useState('');
-  const [author, setAuthor] = useState('');
+  const navigate = useNavigate();
+  const pollIntervalRef = useRef<number | null>(null);
+  const [prompt, setPrompt] = useState(() => getStoredValue(STORAGE_KEYS.prompt));
+  const [author, setAuthor] = useState(() => getStoredValue(STORAGE_KEYS.author));
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(() => {
+    const stored = getStoredValue(STORAGE_KEYS.generatedUrl, '');
+    return stored || null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.prompt, prompt);
+  }, [prompt]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.author, author);
+  }, [author]);
+
+  useEffect(() => {
+    if (generatedImageUrl) {
+      localStorage.setItem(STORAGE_KEYS.generatedUrl, generatedImageUrl);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.generatedUrl);
+    }
+  }, [generatedImageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        window.clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -14,7 +58,6 @@ const Create = () => {
     setGeneratedImageUrl(null);
 
     try {
-      // 1. Submit the job to the server
       const response = await axios.post('http://localhost:5000/api/generate', {
         prompt,
         author,
@@ -22,8 +65,7 @@ const Create = () => {
 
       const { jobId } = response.data;
 
-      // 2. Poll for job status
-      const pollInterval = setInterval(async () => {
+      pollIntervalRef.current = window.setInterval(async () => {
         try {
           const statusResponse = await axios.get(`http://localhost:5000/api/status/${jobId}`);
           const job = statusResponse.data;
@@ -31,25 +73,36 @@ const Create = () => {
           if (job.status === 'completed') {
             setGeneratedImageUrl(job.imageUrl);
             setIsGenerating(false);
-            clearInterval(pollInterval);
+            if (pollIntervalRef.current) {
+              window.clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
           } else if (job.status === 'failed') {
             alert(`Generation failed: ${job.error}`);
             setIsGenerating(false);
-            clearInterval(pollInterval);
+            if (pollIntervalRef.current) {
+              window.clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
           }
-          // If still processing or pending, continue polling
         } catch (error) {
           console.error('Error polling status:', error);
           setIsGenerating(false);
-          clearInterval(pollInterval);
+          if (pollIntervalRef.current) {
+            window.clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
         }
-      }, 2000); // Poll every 2 seconds
-
+      }, 2000);
     } catch (error: any) {
       console.error('Error generating image:', error);
       alert(`Failed to start generation: ${error.response?.data?.error || error.message}`);
       setIsGenerating(false);
     }
+  };
+
+  const handlePublish = () => {
+    navigate('/');
   };
 
   return (
@@ -107,7 +160,11 @@ const Create = () => {
           {generatedImageUrl ? (
             <div className="space-y-4 w-full">
               <img src={generatedImageUrl} alt="Generated" className="w-full h-auto rounded-lg shadow-2xl" />
-              <button className="w-full bg-green-600 hover:bg-green-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all">
+              <button
+                type="button"
+                onClick={handlePublish}
+                className="w-full bg-green-600 hover:bg-green-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+              >
                 <Share2 size={18} /> Publish to Explore
               </button>
             </div>

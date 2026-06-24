@@ -5,7 +5,6 @@ import Image from '../models/Image';
 
 const router = express.Router();
 
-// POST /api/generate
 router.post('/generate', async (req: Request, res: Response) => {
     const { prompt, author } = req.body;
 
@@ -17,7 +16,6 @@ router.post('/generate', async (req: Request, res: Response) => {
     const timestamp = Date.now();
 
     try {
-        // 1. Save initial job to MongoDB
         await Image.create({
             jobId,
             prompt,
@@ -26,7 +24,6 @@ router.post('/generate', async (req: Request, res: Response) => {
             status: 'pending',
         });
 
-        // 2. Send to Kafka
         await sendMessage('image_requests', { jobId, prompt, author, timestamp });
         console.log(`✅ Job ${jobId} queued successfully`);
 
@@ -38,7 +35,6 @@ router.post('/generate', async (req: Request, res: Response) => {
     } catch (error) {
         console.error(`❌ Failed to queue job ${jobId}:`, error);
 
-        // 3. Prevent DB job from getting permanently stuck if Kafka fails
         await Image.findOneAndUpdate(
             { jobId },
             { status: 'failed', error: 'Failed to reach message queue' }
@@ -48,7 +44,6 @@ router.post('/generate', async (req: Request, res: Response) => {
     }
 });
 
-// GET /api/status/:jobId
 router.get('/status/:jobId', async (req: Request, res: Response) => {
     const jobId = req.params.jobId;
 
@@ -80,23 +75,35 @@ router.get('/status/:jobId', async (req: Request, res: Response) => {
     }
 });
 
-export default router;
-
-// GET /api/images
 router.get('/images', async (req: Request, res: Response) => {
     try {
-        const images = await Image.find({ status: 'completed' }).sort({ completedAt: -1 });
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 24));
 
-        return res.status(200).json(images.map(img => ({
-            _id: img._id,
-            prompt: img.prompt,
-            author: img.author,
-            imageUrl: img.imageUrl,
-            createdAt: img.completedAt,
-        })));
+        const skip = (page - 1) * limit;
+
+        const [images, total] = await Promise.all([
+            Image.find({ status: 'completed' }).sort({ completedAt: -1 }).skip(skip).limit(limit).lean(),
+            Image.countDocuments({ status: 'completed' }),
+        ]);
+
+        return res.status(200).json({
+            page,
+            limit,
+            total,
+            images: images.map(img => ({
+                _id: img._id,
+                prompt: img.prompt,
+                author: img.author,
+                imageUrl: img.imageUrl,
+                createdAt: img.completedAt,
+            })),
+        });
 
     } catch (error) {
         console.error("❌ Failed to fetch images:", error);
         return res.status(500).json({ error: "Failed to fetch images" });
     }
 });
+
+export default router;

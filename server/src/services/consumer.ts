@@ -1,19 +1,18 @@
 import { Kafka } from 'kafkajs';
 import fs from 'fs';
+import path from 'path';
 import { InferenceClient } from '@huggingface/inference';
 import dotenv from 'dotenv';
 import Image from '../models/Image';
-import { uploadImageBuffer } from './cloudinary';
+import { uploadImageBuffer, isCloudinaryConfigured } from './cloudinary';
 
 dotenv.config();
 
-// ---- Safety Check for HF Key ----
 if (!process.env.HUGGINGFACE_API_KEY) {
     console.error("❌ CRITICAL: HUGGINGFACE_API_KEY is missing in .env");
     process.exit(1);
 }
 
-// ---- Kafka Setup ----
 const kafka = new Kafka({
     clientId: 'visionstream-worker',
     brokers: [process.env.KAFKA_BROKER!],
@@ -27,11 +26,9 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: 'image-group' });
 
-// ---- HuggingFace Setup ----
 const HF_MODEL = process.env.HUGGINGFACE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
 const client = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
 
-// ---- Image Generation with Smart Retry ----
 const generateImage = async (prompt: string): Promise<Buffer> => {
     const MAX_RETRIES = 3;
     const generationParams = {
@@ -53,7 +50,6 @@ const generateImage = async (prompt: string): Promise<Buffer> => {
             return Buffer.from(arrayBuffer);
 
         } catch (error: any) {
-            // If the error is an Auth error (Invalid username/password), DO NOT retry.
             const isAuthError = error?.message?.toLowerCase().includes('invalid username') ||
                 error?.status === 401;
 
@@ -76,7 +72,6 @@ const generateImage = async (prompt: string): Promise<Buffer> => {
     throw new Error('HF model failed after all retries');
 };
 
-// ---- Kafka Consumer ----
 export const startConsumer = async () => {
     try {
         await consumer.connect();
@@ -105,10 +100,21 @@ export const startConsumer = async () => {
 
                 try {
                     const imageBuffer = await generateImage(prompt);
-                    const uploadResult = await uploadImageBuffer(imageBuffer, jobId);
-                    const imageUrl = uploadResult.secure_url;
 
-                    // Mark job as completed and store the Cloudinary URL only
+                    let imageUrl: string | null = null;
+
+                    if (isCloudinaryConfigured()) {
+                        const uploadResult = await uploadImageBuffer(imageBuffer, jobId);
+                        imageUrl = uploadResult.secure_url;
+                    } else {
+                        const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads');
+                        fs.mkdirSync(uploadsDir, { recursive: true });
+                        const filePath = path.join(uploadsDir, `${jobId}.png`);
+                        fs.writeFileSync(filePath, imageBuffer);
+                        imageUrl = `file://${filePath}`;
+                        console.log(`💾 Saved image locally: ${filePath}`);
+                    }
+
                     await Image.findOneAndUpdate(
                         { jobId },
                         { status: 'completed', imageUrl, completedAt: Date.now() }
