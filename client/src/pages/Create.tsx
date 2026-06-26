@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, Share2 } from 'lucide-react';
+import GeneratingPreview from '../components/GeneratingPreview';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -108,14 +109,14 @@ const Create = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 min-h-screen text-white">
       <header className="mb-10 text-center">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+        <h1 className="text-4xl font-bold cartoon-heading bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
           Create something extraordinary
         </h1>
         <p className="text-gray-400 mt-2">Enter a prompt and let Kafka & AI do the heavy lifting.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <section className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 backdrop-blur-md">
+        <section className="cartoon-card">
           <form onSubmit={handleGenerate} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Your Name</label>
@@ -124,7 +125,7 @@ const Create = () => {
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
                 placeholder="e.g. Aashish Tharu"
-                className="w-full bg-black/40 border border-gray-700 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full bg-black/40 muted-border p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 required
               />
             </div>
@@ -144,30 +145,31 @@ const Create = () => {
             <button
               type="submit"
               disabled={isGenerating}
-              className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${isGenerating ? 'bg-gray-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+              className={`w-full py-4 font-bold flex items-center justify-center gap-2 transition-all ${isGenerating ? 'bg-gray-700 cursor-not-allowed muted-border' : 'cartoon-btn'
                 }`}
             >
               {isGenerating ? (
-                <>Building in Kafka...</>
+                <>Generating<span className="dot-anim">..</span></>
               ) : (
                 <><Sparkles size={20} /> Generate Image</>
               )}
             </button>
           </form>
         </section>
-
-        <section className="flex flex-col items-center justify-center border-2 border-dashed border-gray-800 rounded-2xl bg-gray-900/20 p-4">
+        <section className="flex flex-col items-center justify-center p-4 cartoon-card">
           {generatedImageUrl ? (
             <div className="space-y-4 w-full">
-              <img src={generatedImageUrl} alt="Generated" className="w-full h-auto rounded-lg shadow-2xl" />
+              <img src={generatedImageUrl} alt="Generated" className="w-full h-auto image-squarish" />
               <button
                 type="button"
                 onClick={handlePublish}
-                className="w-full bg-green-600 hover:bg-green-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                className="w-full cartoon-btn flex items-center justify-center gap-2"
               >
                 <Share2 size={18} /> Publish to Explore
               </button>
             </div>
+          ) : isGenerating ? (
+            <GeneratingPreview />
           ) : (
             <div className="text-center text-gray-500">
               <div className="mb-4 flex justify-center text-gray-700">

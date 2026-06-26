@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import type { GeneratedImage } from '../types';
+import ImageCard from '../components/ImageCard';
+import SkeletonCard from '../components/SkeletonCard';
 
 const Explore = () => {
     const STORAGE_KEY = 'visionstream-explore-cache';
@@ -121,8 +123,10 @@ const Explore = () => {
     if (loading) {
         return (
             <div className="max-w-7xl mx-auto p-6">
-                <h1 className="text-3xl font-bold mb-8 text-white">Community Showcase</h1>
-                <div className="text-center text-gray-400">Loading images...</div>
+                <h1 className="text-3xl font-bold mb-8 text-white cartoon-heading">Community Showcase</h1>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 grid-cartoon">
+                    <SkeletonCard count={12} />
+                </div>
             </div>
         );
     }
@@ -141,12 +145,12 @@ const Explore = () => {
 
     return (
         <div className="max-w-7xl mx-auto p-6">
-            <h1 className="text-3xl font-bold mb-8 text-white">Community Showcase</h1>
+            <h1 className="text-3xl font-bold mb-8 text-white cartoon-heading">Community Showcase</h1>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 grid-cartoon">
                 {images.map((img) => (
-                    <div key={img._id} className="group relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-blue-500 transition-all">
-                        <img src={img.imageUrl} alt={img.prompt} className="w-full h-auto object-cover" />
+                    <div key={img._id} className="group relative cartoon-card overflow-hidden transition-all" style={{ height: 240 }}>
+                        <ImageCard src={img.imageUrl || ''} alt={img.prompt} className="image-squarish h-full w-full" />
 
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
                             <p className="text-sm text-gray-200 line-clamp-2 italic">"{img.prompt}"</p>
@@ -165,7 +169,7 @@ const Explore = () => {
             {images.length > 0 && images.length < total && (
                 <div className="mt-8 text-center">
                     <button
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold"
+                        className="cartoon-btn"
                         onClick={async () => {
                             const next = page + 1;
                             setPage(next);

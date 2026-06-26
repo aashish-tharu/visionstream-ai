@@ -5,11 +5,11 @@ import Create from './pages/Create';
 function App() {
   return (
     <BrowserRouter>
-      <nav className="p-4 border-b border-gray-800 flex justify-between items-center bg-black text-white">
-        <Link to="/" className="text-xl font-bold tracking-tighter">VISIONSTREAM</Link>
+      <nav className="p-4 flex justify-between items-center text-white cartoon-nav">
+        <Link to="/" className="text-xl font-bold tracking-tighter cartoon-heading">VISIONSTREAM</Link>
         <div className="space-x-6">
-          <Link to="/" className="hover:text-blue-400">Explore</Link>
-          <Link to="/create" className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700">Create</Link>
+          <Link to="/" className="hover:text-blue-300">Explore</Link>
+          <Link to="/create" className="cartoon-btn">Create</Link>
         </div>
       </nav>
 

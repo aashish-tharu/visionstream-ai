@@ -5,7 +5,17 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      animation: {
+        shimmer: 'shimmer-gradient 2s infinite',
+      },
+      keyframes: {
+        'shimmer-gradient': {
+          '0%': { backgroundPosition: '-1000px 0' },
+          '100%': { backgroundPosition: '1000px 0' },
+        },
+      },
+    },
   },
   plugins: [],
 }
