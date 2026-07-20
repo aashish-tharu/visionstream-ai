@@ -1,13 +1,12 @@
+import 'dotenv/config';
+
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
-import dotenv from "dotenv";
 import generateRoutes from './routes/generate';
 import { startConsumer } from './services/consumer';
 import { connectProducer } from './services/kafka';
-
-dotenv.config();
 
 const app = express();
 
@@ -29,12 +28,8 @@ const startServer = async () => {
 
         await connectProducer();
 
-        // IMPORTANT: startConsumer() internally calls consumer.run(), whose
-        // returned promise never resolves (it's a long-running message loop).
-        // Awaiting it here blocks app.listen() forever. Fire-and-forget it
-        // instead, but still catch errors so a consumer crash doesn't get lost.
         startConsumer().catch((err) => {
-            console.error("❌ Kafka consumer crashed:", err);
+            console.error("Kafka consumer crashed:", err);
         });
 
         app.listen(PORT, () => {

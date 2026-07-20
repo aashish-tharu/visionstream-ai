@@ -1,7 +1,5 @@
-// src/models/Image.ts
 import mongoose, { Document, Schema } from 'mongoose';
 
-// ✅ Define the interface
 export interface IImage extends Document {
     jobId: string;
     prompt: string;

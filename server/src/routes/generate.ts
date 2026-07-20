@@ -12,20 +12,40 @@ router.post('/generate', async (req: Request, res: Response) => {
         return res.status(400).json({ error: "Prompt and Author are required." });
     }
 
+    if (typeof prompt !== 'string' || typeof author !== 'string') {
+        return res.status(400).json({ error: "Prompt and Author must be strings." });
+    }
+
+    const trimmedPrompt = prompt.trim();
+    const trimmedAuthor = author.trim();
+
+    if (!trimmedPrompt || !trimmedAuthor) {
+        return res.status(400).json({ error: "Prompt and Author cannot be empty." });
+    }
+
+    if (trimmedPrompt.length > 1000) {
+        return res.status(400).json({ error: "Prompt is too long (max 1000 characters)." });
+    }
+
     const jobId = uuidv4();
     const timestamp = Date.now();
 
     try {
         await Image.create({
             jobId,
-            prompt,
-            author,
+            prompt: trimmedPrompt,
+            author: trimmedAuthor,
             timestamp,
             status: 'pending',
         });
+    } catch (error) {
+        console.error(`Failed to create job record ${jobId}:`, error);
+        return res.status(500).json({ error: "Failed to save image request" });
+    }
 
-        await sendMessage('image_requests', { jobId, prompt, author, timestamp });
-        console.log(`✅ Job ${jobId} queued successfully`);
+    try {
+        await sendMessage('image_requests', { jobId, prompt: trimmedPrompt, author: trimmedAuthor, timestamp });
+        console.log(`Job ${jobId} queued successfully`);
 
         return res.status(202).json({
             message: "Image generation started",
@@ -33,7 +53,7 @@ router.post('/generate', async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error(`❌ Failed to queue job ${jobId}:`, error);
+        console.error(`Failed to queue job ${jobId}:`, error);
 
         await Image.findOneAndUpdate(
             { jobId },
@@ -70,7 +90,7 @@ router.get('/status/:jobId', async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error("❌ Failed to fetch job status:", error);
+        console.error("Failed to fetch job status:", error);
         return res.status(500).json({ error: "Failed to fetch job status" });
     }
 });
@@ -101,7 +121,7 @@ router.get('/images', async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        console.error("❌ Failed to fetch images:", error);
+        console.error("Failed to fetch images:", error);
         return res.status(500).json({ error: "Failed to fetch images" });
     }
 });

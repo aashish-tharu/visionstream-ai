@@ -1,8 +1,5 @@
 import { Kafka } from 'kafkajs';
 import fs from 'fs';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const kafka = new Kafka({
     clientId: 'visionstream-app',
@@ -20,10 +17,10 @@ const producer = kafka.producer();
 export const connectProducer = async () => {
     try {
         await producer.connect();
-        console.log('✅ Kafka Producer Connected');
+        console.log('Kafka Producer Connected');
     } catch (error) {
-        console.error('❌ Kafka Connection Error:', error);
-        throw error; // Prevents the server from booting if Kafka is down
+        console.error('Kafka Connection Error:', error);
+        throw error;
     }
 };
 
@@ -34,7 +31,7 @@ export const sendMessage = async (topic: string, message: any) => {
             messages: [{ value: JSON.stringify(message) }],
         });
     } catch (error) {
-        console.error('❌ Error sending message to Kafka:', error);
-        throw error; // Lets the Express router know the queue failed
+        console.error('Error sending message to Kafka:', error);
+        throw error;
     }
 };

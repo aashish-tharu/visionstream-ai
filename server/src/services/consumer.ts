@@ -9,7 +9,7 @@ import { uploadImageBuffer, isCloudinaryConfigured } from './cloudinary';
 dotenv.config();
 
 if (!process.env.HUGGINGFACE_API_KEY) {
-    console.error("❌ CRITICAL: HUGGINGFACE_API_KEY is missing in .env");
+    console.error("CRITICAL: HUGGINGFACE_API_KEY is missing in .env");
     process.exit(1);
 }
 
@@ -24,7 +24,23 @@ const kafka = new Kafka({
     },
 });
 
-const consumer = kafka.consumer({ groupId: 'image-group' });
+const consumer = kafka.consumer({ groupId: 'image-group', sessionTimeout: 90000 });
+
+interface ImageJobMessage {
+    jobId: string;
+    prompt: string;
+    author: string;
+    timestamp: number;
+}
+
+const isValidJobMessage = (value: unknown): value is ImageJobMessage => {
+    if (!value || typeof value !== 'object') return false;
+    const v = value as Record<string, unknown>;
+    return typeof v.jobId === 'string' &&
+        typeof v.prompt === 'string' &&
+        typeof v.author === 'string' &&
+        typeof v.timestamp === 'number';
+};
 
 const HF_MODEL = process.env.HUGGINGFACE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
 const client = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
@@ -38,7 +54,7 @@ const generateImage = async (prompt: string): Promise<Buffer> => {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            console.log(`🎨 Generating image... attempt ${attempt}/${MAX_RETRIES}`);
+            console.log(`Generating image... attempt ${attempt}/${MAX_RETRIES}`);
 
             const blob: Blob = await client.textToImage({
                 model: HF_MODEL,
@@ -60,7 +76,7 @@ const generateImage = async (prompt: string): Promise<Buffer> => {
             const isLoading = error?.message?.includes('loading') || error?.status === 503;
 
             if (isLoading && attempt < MAX_RETRIES) {
-                console.log(`⏳ Model loading, retrying in 15s... (${attempt}/${MAX_RETRIES})`);
+                console.log(`Model loading, retrying in 15s... (${attempt}/${MAX_RETRIES})`);
                 await new Promise((r) => setTimeout(r, 15000));
                 continue;
             }
@@ -80,17 +96,29 @@ export const startConsumer = async () => {
             fromBeginning: false,
         });
 
-        console.log('✅ Worker is waiting for jobs...');
+        console.log('Worker is waiting for jobs...');
 
         await consumer.run({
             eachMessage: async ({ message }) => {
                 const rawData = message.value?.toString();
                 if (!rawData) return;
 
-                const job = JSON.parse(rawData);
+                let job: unknown;
+                try {
+                    job = JSON.parse(rawData);
+                } catch (err) {
+                    console.error('Skipping message — invalid JSON:', rawData);
+                    return;
+                }
+
+                if (!isValidJobMessage(job)) {
+                    console.error('Skipping message — missing required fields:', job);
+                    return;
+                }
+
                 const { jobId, prompt, author, timestamp } = job;
 
-                console.log(`🔄 Processing Job: ${jobId} | Prompt: "${prompt}"`);
+                console.log(`Processing Job: ${jobId} | Prompt: "${prompt}"`);
 
                 await Image.findOneAndUpdate(
                     { jobId },
@@ -109,10 +137,11 @@ export const startConsumer = async () => {
                     } else {
                         const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads');
                         fs.mkdirSync(uploadsDir, { recursive: true });
-                        const filePath = path.join(uploadsDir, `${jobId}.png`);
+                        const fileName = `${jobId}.png`;
+                        const filePath = path.join(uploadsDir, fileName);
                         fs.writeFileSync(filePath, imageBuffer);
-                        imageUrl = `file://${filePath}`;
-                        console.log(`💾 Saved image locally: ${filePath}`);
+                        imageUrl = `/uploads/${fileName}`;
+                        console.log(`Saved image locally: ${filePath} → ${imageUrl}`);
                     }
 
                     await Image.findOneAndUpdate(
@@ -120,10 +149,10 @@ export const startConsumer = async () => {
                         { status: 'completed', imageUrl, completedAt: Date.now() }
                     );
 
-                    console.log(`✅ Job ${jobId} completed — ${imageBuffer.byteLength} bytes | ${imageUrl}`);
+                    console.log(`Job ${jobId} completed — ${imageBuffer.byteLength} bytes | ${imageUrl}`);
 
                 } catch (err: any) {
-                    console.error(`❌ Job ${jobId} failed:`, err.message);
+                    console.error(`Job ${jobId} failed:`, err.message);
 
                     await Image.findOneAndUpdate(
                         { jobId },
@@ -134,7 +163,7 @@ export const startConsumer = async () => {
         });
 
     } catch (error) {
-        console.error('❌ Kafka Consumer Connection Error:', error);
+        console.error('Kafka Consumer Connection Error:', error);
         process.exit(1);
     }
 };

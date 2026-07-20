@@ -48,7 +48,7 @@ const configured = Boolean(cloudinaryConfig && cloudinaryConfig.cloud_name && cl
 if (configured && cloudinaryConfig) {
     cloudinary.config(cloudinaryConfig);
 } else {
-    console.warn('⚠️ Cloudinary not configured. Uploads will fall back to local storage.');
+    console.warn('Cloudinary not configured. Uploads will fall back to local storage.');
 }
 
 export const isCloudinaryConfigured = () => configured;
@@ -66,6 +66,10 @@ export const uploadImageBuffer = async (
         overwrite: true,
         resource_type: 'image',
         format: 'png',
+        eager: [
+            { width: 400, crop: 'fill', gravity: 'auto', quality: 'auto', fetch_format: 'auto' },
+        ],
+        eager_async: true,
     };
 
     if (publicId) {
